@@ -1,8 +1,14 @@
 const { Model, DataTypes } = require('sequelize');
 const sequelize = require('../config/connection');
+const bcrypt = require('bcrypt');
 
 //Create User Model
-class User extends Model {}
+class User extends Model {
+    //Set Up Method to Run on Instance Data (Per User) to Check Password
+    checkPassword(loginPw) {
+        return bcrypt.compareSync(loginPw, this.password);
+    }
+}
 
 //Define table Columns and Config
 User.init(
@@ -55,6 +61,21 @@ User.init(
     {
         //TABLE CONFIGURATION OPTIONS GO HERE (https://sequelize.org/v5/manual/models-definition.html#configuration)
 
+        //Add Hooks to Hash Passwords Before Stored in DB
+        hooks: {
+            //Set Up beforeCreate Lifecycle "hook" Functionality
+            async beforeCreate(newUserData) {
+                newUserData.password = await bcrypt.hash(newUserData.password, 10);
+                return newUserData;
+            },
+
+            //Set Up beforeUpdate Lifecycle "hook" Functionality
+            async beforeUpdate(updatedUserData) {
+                updatedUserData.password = await bcrypt.hash(updatedUserData.password, 10);
+                return updatedUserData;
+            }
+
+        },
 
         //Pass in Our Imported Sequelize Connection (the direct connection to our database)
         sequelize,
