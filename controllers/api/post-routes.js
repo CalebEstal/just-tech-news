@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const { Post, User, Vote, Comment } = require('../../models');
 const sequelize = require('../../config/connection');
+const withAuth = require('../../utils/auth');
 
 //Get All Posts
 router.get('/', (req, res) => {
@@ -77,11 +78,11 @@ router.get('/:id', (req, res) => {
 });
 
 //Create a new post
-router.post('/', (req, res) => {
+router.post('/', withAuth, (req, res) => {
     Post.create({
         title: req.body.title,
         post_url: req.body.post_url,
-        user_id: req.body.user_id
+        user_id: req.session.user_id
     })
     .then(dbPostData => res.json(dbPostData))
     .catch(err => {
@@ -91,7 +92,7 @@ router.post('/', (req, res) => {
 });
 
 // PUT /api/posts/upvote
-router.put('/upvote', (req, res) => {
+router.put('/upvote', withAuth, (req, res) => {
     //make sure the session exists first
     if (req.session) {
         // pass the session id along with all the destructured properties on req.body
@@ -105,7 +106,7 @@ router.put('/upvote', (req, res) => {
 });
 
 //Update a posts title
-router.put('/:id', (req, res) => {
+router.put('/:id', withAuth, (req, res) => {
     Post.update(
         {
             title: req.body.title
@@ -130,23 +131,33 @@ router.put('/:id', (req, res) => {
 });
 
 //Delete a post
-router.delete('/:id', (req, res) => {
-    Post.destroy({
-        where: {
-            id: req.params.id
-        }
-    })
-    .then (dbPostData => {
-        if (!dbPostData) {
+// Delete a post
+router.delete('/:id', withAuth, async (req, res) => {
+    try {
+        // First, delete all comments associated with the post
+        await Comment.destroy({
+            where: {
+                post_id: req.params.id
+            }
+        });
+
+        // Then, delete the post itself
+        const postData = await Post.destroy({
+            where: {
+                id: req.params.id
+            }
+        });
+
+        if (!postData) {
             res.status(404).json({ message: 'No post found with this id' });
             return;
         }
-        res.json(dbPostData)
-    })
-    .catch(err => {
-        console.log(err);
+
+        res.status(200).json({ message: 'Post and associated comments deleted successfully' });
+    } catch (err) {
+        console.error(err);
         res.status(500).json(err);
-    });
+    }
 });
 
 module.exports = router;
